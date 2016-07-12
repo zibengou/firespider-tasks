@@ -1,0 +1,17 @@
+[
+	{
+		"url":"http://www.qdaily.com/",
+		"regexList":[
+			{"name":"author","regex":"class=\"name\">(.*?)<"},
+			{"name":"title","regex":"<title>(.*?)<"}			
+			],
+		"suffixList":["articles/29337~29339.html"]
+	},
+	{
+		"url":"http://36kr.com/",
+		"regexList":[
+			{"name":"author","regex":"user\".*?name\":\"(.*?)\""}		
+			],
+		"suffixList":["p/5049407.html"]
+	}
+]
