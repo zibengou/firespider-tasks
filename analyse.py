@@ -21,7 +21,7 @@ def writeFile(path,content,wirtetype='w',code='utf-8'):
 	f.write(content)
 	f.close()
 def initConfig(path):
-	initJson = json.loads(readFile('test.json'))
+	initJson = json.loads(readFile(path))
 	urlObjectList = []
 	for jsonObject in initJson:
 		for suffix in jsonObject['suffixList']:
@@ -88,4 +88,4 @@ def execute(path,splitNum):
 		run(i,fileName)
 		fileName+=1
 if __name__=='__main__':
-	execute("test.json",2)
+	execute("config.json",2)
