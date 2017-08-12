@@ -1,24 +1,23 @@
 from neo4j.v1 import GraphDatabase
 import requests
 
-
 class DataBase(object):
     def __init__(self, username, password, url="bolt://localhost:7687"):
         self.neo_url = url
         self.neo_driver = GraphDatabase.driver(self.neo_url, auth=(username, password))
         self.session = self.neo_driver.session()
-        self.tx = self.session.begin_transaction()
         print("init DBneo4j success!")
 
-    def __exit__(self, *args):
-        self.tx.close()
+    def __del__(self):
+        print("session closed")
         self.session.close()
         self.neo_driver.close()
 
-    def execute(self, neo_sql, args):
-        print("execute sql begin : %s" % neo_sql)
-        records = self.tx.run(neo_sql, args)
-        print("execute sql success")
+    def execute(self, neo_sql, **kwargs):
+        # print("execute sql begin : %s" % neo_sql)
+        with self.session.begin_transaction() as tx:
+            records = tx.run(neo_sql, kwargs)
+        # print("execute sql success")
         return [record for record in records]
 
 
@@ -34,7 +33,7 @@ class Spider(object):
         if "https:" in host:
             self.isSSL = True
 
-    def __exit__(self, *args):
+    def __del__(self):
         self.req.close()
 
     def get(self, path=None, params=None, is_json=False, headers=None):
@@ -68,3 +67,4 @@ class Spider(object):
 
     def get_req(self):
         return self.req
+

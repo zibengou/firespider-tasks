@@ -1,11 +1,165 @@
 from base import Spider, DataBase
+import sys, getopt
 
 if __name__ == '__main__':
-    # db = DataBase("stone", "stone")
-    sp = Spider("https://www.zhihu.com", verify=True)
     headers = {"authorization": "oauth c3cef7c66a1843f8b3a9e6a1e3160e20"}
-    path = "/api/v4/members/zhang-fang-zhou-54"
-    args_str = "?include=locations%2Cemployments%2Cgender%2Ceducations%2Cbusiness%2Cvoteup_count%2Cthanked_Count%2Cfollower_count%2Cfollowing_count%2Ccover_url%2Cfollowing_topic_count%2Cfollowing_question_count%2Cfollowing_favlists_count%2Cfollowing_columns_count%2Cavatar_hue%2Canswer_count%2Carticles_count%2Cpins_count%2Cquestion_count%2Ccolumns_count%2Ccommercial_question_count%2Cfavorite_count%2Cfavorited_count%2Clogs_count%2Cmarked_answers_count%2Cmarked_answers_text%2Cmessage_thread_token%2Caccount_status%2Cis_active%2Cis_bind_phone%2Cis_force_renamed%2Cis_bind_sina%2Cis_privacy_protected%2Csina_weibo_url%2Csina_weibo_name%2Cshow_sina_weibo%2Cis_blocking%2Cis_blocked%2Cis_following%2Cis_followed%2Cmutual_followees_count%2Cvote_to_count%2Cvote_from_count%2Cthank_to_count%2Cthank_from_count%2Cthanked_count%2Cdescription%2Chosted_live_count%2Cparticipated_live_count%2Callow_message%2Cindustry_category%2Corg_name%2Corg_homepage%2Cbadge%5B%3F(type%3Dbest_answerer)%5D.topics"
-    res = sp.get(path=path + args_str, headers=headers, is_json=True)
-    # res = db.execute("match(n) return n", None)
-    print(res)
+
+
+    def combine_args(url_token, offset, limit, type=None):
+        if type is None:
+            user_params = {
+                "include": "url_token,type,locations,name,description,business,employments,educations,answer_count,question_count,follower_count,following_count,headline,thanked_count,voteup_count,favorited_count,following_topic_count,following_favlists_count,participated_live_count,answer_count,articles_count"
+            }
+            path = "/api/v4/members/%(user)s" % {"user": url_token}
+            params = user_params
+        else:
+            follow_params = {
+                "include": "data[*].url_token,type,locations,name,description,business,employments,educations,answer_count,question_count,follower_count,following_count,headline,thanked_count,voteup_count,favorited_count,following_topic_count,following_favlists_count,participated_live_count,answer_count,articles_count",
+                "offset": str(offset),
+                "limit": str(limit)
+            }
+            path = "/api/v4/members/%(user)s/%(type)s" % {"user": url_token, "type": type}
+            params = follow_params
+        return path, params
+
+
+    def get_user_list(url_token, type, offset=0, limit=20):
+        path, params = combine_args(url_token, offset=offset, limit=limit, type=type)
+        res = sp.get(path=path, params=params, headers=headers, is_json=True)
+        if 'data' in res:
+            res = res['data']
+        else:
+            res = []
+
+        def add_match_property(user):
+            user['is_matching'] = False
+            return user
+
+        return list(map(add_match_property, res))
+
+
+    def find_next(name=None, type='followers', offset=0, limit=20):
+        results = []
+        if name is None:
+            find_next_sql = "match(n:People{is_matching:False}) where n.%s is null return n limit 1" % (
+                type + "_matched")
+        else:
+            find_next_sql = "match(n:People{name:'%s',is_matching:False}) where n.%s is null return n limit 1" % (
+                name, type + "_matched")
+        data_list = db.execute(find_next_sql, arg=None)
+        user = data_list[0]._values[0].properties
+        counts = user['follower_count'] if type == 'followers' else user['following_count']
+        if counts < 1:
+            return user, []
+        else:
+            for q_offset in range(offset, counts, limit):
+                results.extend(get_user_list(user['url_token'], type, q_offset, limit))
+        return user, results
+
+
+    def parse_user(user, url_token, type):
+        args = {}
+        user.pop('badge', None)
+
+        def parse_business():
+            sql = ''
+            if 'business' in user:
+                business = user['business']
+                sql = ' merge(business:Business{name:{business}.name}) set business={business} merge(people)-[:work_in]->(business)'
+                args['business'] = business
+                user.pop('business', None)
+            return sql
+
+        def parse_locations():
+            sql = ''
+            if 'locations' in user:
+                locations = user['locations']
+                for index, location in enumerate(locations):
+                    location_index_str = 'location_' + str(index) + '_v'
+                    args[location_index_str] = location
+                    sql += ' merge(%(loc_str)s:Location{name:{%(loc_str)s}.name}) set %(loc_str)s={%(loc_str)s} merge(people)-[:lived]->(%(loc_str)s)' % {
+                        "loc_str": location_index_str}
+                user.pop('locations', None)
+            return sql
+
+        def parse_educations():
+            sql = ''
+            if 'educations' in user:
+                educations = user['educations']
+                for index, education in enumerate(educations):
+                    if 'school' not in education:
+                        continue
+                    if 'major' in education:
+                        major = education['major']
+                    else:
+                        major = {"name": ""}
+                    school = education['school']
+                    school_index_str = 'school_' + str(index) + '_v'
+                    args[school_index_str] = school
+                    sql += ' merge(%(school_str)s:School{name:{%(school_str)s}.name}) set %(school_str)s={%(school_str)s} merge(people)-[:educated{major:"%(major)s"}]->(%(school_str)s)' % {
+                        "school_str": school_index_str, "major": major['name']}
+                user.pop('educations', None)
+            return sql
+
+        def parse_employments():
+            sql = ''
+            if 'employments' in user:
+                employments = user['employments']
+                for index, employment in enumerate(employments):
+                    if 'company' not in employment:
+                        continue
+                    company = employment['company']
+                    if 'job' in employment:
+                        job = employment['job']
+                    else:
+                        job = {"name": ""}
+                    company_index_str = 'company_' + str(index) + '_v'
+                    args[company_index_str] = company
+                    sql += ' merge(%(company_str)s:Company{name:{%(company_str)s}.name}) set %(company_str)s={%(company_str)s} merge(people)-[:work_for{job:"%(job)s"}]->(%(company_str)s)' % {
+                        "company_str": company_index_str, "job": job['name']}
+                user.pop('employments', None)
+            return sql
+
+        bus_sql = parse_business()
+        loc_sql = parse_locations()
+        edu_sql = parse_educations()
+        emp_sql = parse_employments()
+        relationship = 'following' if type == 'followers' else 'follow_by'
+        sql = 'merge(people:People{url_token:{user}.url_token}) set people+={user} merge(xx:People{url_token:{url_token}}) merge(xx)-[:%s]->(people)' % relationship
+        args['user'] = user
+        args['url_token'] = url_token
+        sql = sql + bus_sql + loc_sql + edu_sql + emp_sql
+        return sql, args
+
+
+    def insert(user, results, type='followers'):
+        is_matching_sql = 'merge(xx:People{url_token:"%s"}) set xx.is_matching=True' % user['url_token']
+        db.execute(is_matching_sql, arg=None)
+        length = len(results)
+        for index, result in enumerate(results):
+            print("[%s/%s] insert user : %s" % (str(index + 1), str(length), result['name']))
+            (sql, args) = parse_user(result, user['url_token'], type)
+            db.execute(sql, **args)
+        base_sql = 'merge(xx:People{url_token:"%s"}) set xx.%s=True set xx.is_matching=False' % (
+            user['url_token'], type + "_matched")
+        db.execute(base_sql, arg=None)
+
+
+    opts, args = getopt.getopt(sys.argv[1:], ":t:n:")
+    type = "followers"
+    nums = 10
+    for op, value in opts:
+        if op == "-t":
+            type = value
+        elif op == "-n":
+            nums = int(value)
+
+    db = DataBase("neo4j", "2017", url="bolt://192.168.1.105:7687")
+    sp = Spider("https://www.zhihu.com", verify=True)
+    args_num = len(sys.argv)
+    for i in range(0, nums):
+        (user, results) = find_next(type=type)
+        print("*********[%s/%s] parse user : %s *********" % (str(i + 1), str(nums), user['name']))
+        insert(user, results, type=type)
+    del db
+    del sp
