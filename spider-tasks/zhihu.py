@@ -48,10 +48,11 @@ if __name__ == '__main__':
                 name, type + "_matched")
         data_list = db.execute(find_next_sql, arg=None)
         user = data_list[0]._values[0].properties
-        counts = user['follower_count'] if type == 'followers' else user['following_count']
+        counts = int(user['follower_count']) if type == 'followers' else int(user['following_count'])
         if counts < 1:
             return user, []
         else:
+            counts = 2000 if counts > 2000 else counts
             for q_offset in range(offset, counts, limit):
                 results.extend(get_user_list(user['url_token'], type, q_offset, limit))
         return user, results
@@ -124,7 +125,7 @@ if __name__ == '__main__':
         loc_sql = parse_locations()
         edu_sql = parse_educations()
         emp_sql = parse_employments()
-        relationship = 'following' if type == 'followers' else 'follow_by'
+        relationship = 'follow_by' if type == 'followers' else 'following'
         sql = 'merge(people:People{url_token:{user}.url_token}) set people+={user} merge(xx:People{url_token:{url_token}}) merge(xx)-[:%s]->(people)' % relationship
         args['user'] = user
         args['url_token'] = url_token
@@ -146,7 +147,7 @@ if __name__ == '__main__':
 
 
     opts, args = getopt.getopt(sys.argv[1:], ":t:n:")
-    type = "followers"
+    type = "followees"
     nums = 10
     for op, value in opts:
         if op == "-t":
