@@ -158,8 +158,12 @@ if __name__ == '__main__':
     sp = Spider("https://www.zhihu.com", verify=True)
     args_num = len(sys.argv)
     for i in range(0, nums):
-        (user, results) = find_next(type=type)
-        print("*********[%s/%s] parse user : %s *********" % (str(i + 1), str(nums), user['name']))
-        insert(user, results, type=type)
+        try:
+            (user, results) = find_next(type=type)
+            print("*********[%s/%s] parse user : %s *********" % (str(i + 1), str(nums), user['name']))
+            insert(user, results, type=type)
+        except Exception as e:
+            print("*********[%s/%s] error parse : %s *********" % (str(i + 1), str(nums), str(e)))
+            continue
     del db
     del sp
