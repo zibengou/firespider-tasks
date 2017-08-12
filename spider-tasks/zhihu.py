@@ -41,7 +41,7 @@ if __name__ == '__main__':
     def find_next(name=None, type='followers', offset=0, limit=20):
         results = []
         if name is None:
-            find_next_sql = "match(n:People{is_matching:False}) where n.%s is null return n limit 1" % (
+            find_next_sql = "match(n:People{is_matching:False}) where n.%s is null set n.is_matching=True return n limit 1" % (
                 type + "_matched")
         else:
             find_next_sql = "match(n:People{name:'%s',is_matching:False}) where n.%s is null return n limit 1" % (
