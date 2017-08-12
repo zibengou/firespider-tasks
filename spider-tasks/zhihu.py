@@ -54,6 +54,8 @@ if __name__ == '__main__':
         else:
             counts = 2000 if counts > 2000 else counts
             for q_offset in range(offset, counts, limit):
+                print("********* request user : %s total_counts : %s success_counts : %s *********" % (
+                user['name'], str(counts), str(len(results))))
                 results.extend(get_user_list(user['url_token'], type, q_offset, limit))
         return user, results
 
