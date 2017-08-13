@@ -31,17 +31,13 @@ if __name__ == '__main__':
         else:
             res = []
 
-        def add_match_property(user):
-            user['is_matching'] = False
-            return user
-
-        return list(map(add_match_property, res))
+        return res
 
 
     def find_next(name=None, type='followers', offset=0, limit=20):
         results = []
         if name is None:
-            find_next_sql = "match(n:People{is_matching:False}) where n.%s is null set n.is_matching=True return n limit 1" % (
+            find_next_sql = "match(n:People) where n.%s is null and n.is_matching is null with n limit 1 set n.is_matching=True return n" % (
                 type + "_matched")
         else:
             find_next_sql = "match(n:People{name:'%s',is_matching:False}) where n.%s is null return n limit 1" % (
