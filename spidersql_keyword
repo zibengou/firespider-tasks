@@ -1,0 +1,20 @@
+keyword:
+1. action
+	1. get
+	2. store
+	3. scan
+	4. return
+	5. -> | -[1]> | -[1,2]>  -[1,2,name]>  // pop and push
+2. prperties
+	1. {"json":"value"}   // json 
+	2. ""|1|1.1			  // string | int | float
+	3. variable			  // a | a.name 
+	4. json with variable // {"url":a.url}
+3. split
+	1. ';' concurrency
+	2. '|' serial
+4. object
+	1. get{host(must),urls(must),header,proxy...} -> [data]
+	2. store{data(must),type...} -> map(key,boolean)
+5. assignment
+	1. ':'		// a:get{"..."} | a:"asda" | a:{"..."}
